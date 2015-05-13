@@ -13,10 +13,12 @@ npm install redis-online
 
 ```js
 var options = {
-  redisUrl: 'redis://0@localhost:6379'
+  redisUrl: 'redis://localhost:6379'
 };
 
-var tracker = require('redis-online')(options);`
+var tracker = require('redis-online');
+
+tracker.init(options);
 
 // ...
 
