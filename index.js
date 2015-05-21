@@ -18,9 +18,8 @@ onlineTracker.prototype.init = function(options){
 
   if (this.options.redisUrl){
     this.client = redis.connect(this.options.redisUrl);
+    this._init = true;
   }
-
-  this._init = true;
 };
 
 onlineTracker.prototype.setOnline = function(userId, cb){
@@ -31,16 +30,21 @@ onlineTracker.prototype.setOnline = function(userId, cb){
 
   async.parallel([
     this.client.sadd.bind(this.client, key, userId),
-    this.client.expire.bind(this.client, key, this.options.interval * 60)
+    this.client.expire.bind(this.client, key, 15 * 60)
   ], cb);
 
 };
 
-onlineTracker.prototype.getOnline = function(cb){
+onlineTracker.prototype.getOnline = function(time, cb){
+
+  if (!cb){
+    cb = time;
+    time = this.options.interval;
+  }
+
   if(!this._init) this.init();
   if (!this.client) return cb && cb('No redis connection!');
-
-  var keys = this.getTimeKeys();
+  var keys = this.getTimeKeys(time);
   this.client.sunion(keys, cb);
 };
 
@@ -67,11 +71,11 @@ onlineTracker.prototype.getTimeKey = function(){
   return this.options.prefix + ':' +  hh + ':' + mm;
 };
 
-onlineTracker.prototype.getTimeKeys = function(){
+onlineTracker.prototype.getTimeKeys = function(time){
   var date = new Date(), hh, mm, keys= [];
 
 
-  for(var i = 0; i < this.options.interval; i++){
+  for(var i = 0; i < time; i++){
 
     hh = zerify(date.getHours());
     mm = zerify(date.getMinutes());
