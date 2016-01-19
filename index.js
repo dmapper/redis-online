@@ -5,7 +5,8 @@ var async = require('async');
 
 var defaultOptions = {
   prefix: 'online',   // redis keys prefix
-  interval: 3         // minutes (user is offline after the time)
+  interval: 3,        // minutes (user is offline after the time)
+  expireTime: 60 * 60 // seconds for data to expire in redis
 };
 
 function onlineTracker(){
@@ -30,7 +31,7 @@ onlineTracker.prototype.setOnline = function(userId, cb){
 
   async.parallel([
     this.client.sadd.bind(this.client, key, userId),
-    this.client.expire.bind(this.client, key, 15 * 60)
+    this.client.expire.bind(this.client, key, this.options.expireTime)
   ], cb);
 
 };
