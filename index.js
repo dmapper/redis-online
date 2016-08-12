@@ -5,7 +5,7 @@ var async = require('async');
 
 var defaultOptions = {
   prefix: 'online',   // redis keys prefix
-  interval: 3,        // minutes (user is offline after the time)
+  interval: 180,        // seconds (user is offline after the time)
   expireTime: 60 * 60 // seconds for data to expire in redis
 };
 
@@ -14,6 +14,7 @@ function onlineTracker(){
 }
 
 onlineTracker.prototype.init = function(options){
+  options = options || {};
   this.options = extend(true, defaultOptions, options);
   this.options.redisUrl = this.options.redisUrl || process.env.REDIS_URL;
 
@@ -23,11 +24,16 @@ onlineTracker.prototype.init = function(options){
   }
 };
 
-onlineTracker.prototype.setOnline = function(userId, cb){
+onlineTracker.prototype.setOnline = function(userId, prefix, cb){
+  if (!cb){
+    cb = prefix;
+    prefix = this.options.prefix;
+  }
+
   if(!this._init) this.init();
   if (!this.client) return cb && cb('No redis connection!');
 
-  var key = this.getTimeKey();
+  var key = this.getTimeKey(prefix);
 
   async.parallel([
     this.client.sadd.bind(this.client, key, userId),
@@ -36,24 +42,34 @@ onlineTracker.prototype.setOnline = function(userId, cb){
 
 };
 
-onlineTracker.prototype.getOnline = function(time, cb){
+onlineTracker.prototype.getOnline = function(time, prefix, cb){
 
-  if (!cb){
+  if (!prefix) {
     cb = time;
+    time = this.options.interval;
+    prefix = this.options.prefix;
+  }
+  if (!cb){
+    cb = prefix;
+    prefix = time;
     time = this.options.interval;
   }
 
   if(!this._init) this.init();
   if (!this.client) return cb && cb('No redis connection!');
-  var keys = this.getTimeKeys(time);
+  var keys = this.getTimeKeys(time, prefix);
   this.client.sunion(keys, cb);
 };
 
-onlineTracker.prototype.isOnline = function(userId, cb){
-  if(!this._init) this.init();
+onlineTracker.prototype.isOnline = function(userId, prefix, cb){
+  if (!cb){
+    cb = prefix;
+    prefix = this.options.prefix;
+  }
+  if(!this._init) this.init({});
   if (!this.client) return cb && cb('No redis connection!');
 
-  this.getOnline(function(err, res){
+  this.getOnline(prefix, function(err, res){
     if(err) return cb && cb(err);
 
     res = res || [];
@@ -64,26 +80,28 @@ onlineTracker.prototype.isOnline = function(userId, cb){
 
 // redis sets key
 // format - prefix:hh:mm
-onlineTracker.prototype.getTimeKey = function(){
-  var date = new Date(),
-    hh = zerify(date.getHours()),
-    mm = zerify(date.getMinutes());
-
-  return this.options.prefix + ':' +  hh + ':' + mm;
+onlineTracker.prototype.getTimeKey = function(prefix){
+  prefix = prefix || this.options.prefix;
+  var date = new Date();
+  var hh = zerify(date.getHours());
+  var mm = zerify(date.getMinutes());
+  var ss = zerify(round(date.getSeconds(), this.options.round || 5));
+  return prefix + ':' +  hh + ':' + mm + ':' + ss;
 };
 
-onlineTracker.prototype.getTimeKeys = function(time){
-  var date = new Date(), hh, mm, keys= [];
+onlineTracker.prototype.getTimeKeys = function(time, prefix){
+  var timestamp = Date.now(), hh, mm, ss, keys= [];
+  var rnd = this.options.round || 5;
 
-
-  for(var i = 0; i < time; i++){
+  for(var i = 0; i < Math.ceil(time / rnd); i++){
+    var date = new Date(timestamp - i * rnd * 1000);
 
     hh = zerify(date.getHours());
     mm = zerify(date.getMinutes());
+    ss = zerify(round(date.getSeconds(), rnd));
 
-    keys.push(this.options.prefix + ':' + hh + ':' + mm);
+    keys.push(prefix + ':' + hh + ':' + mm + ':' + ss);
 
-    date.setMinutes(date.getMinutes() - 1)
   }
 
   return keys;
@@ -91,6 +109,10 @@ onlineTracker.prototype.getTimeKeys = function(time){
 
 function zerify(str){
   return ('00' + str).slice(-2);
+}
+
+function round(num, div){
+  return Math.floor(num / div) * div;
 }
 
 module.exports = new onlineTracker();
