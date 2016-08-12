@@ -1,6 +1,6 @@
 {
   "name": "redis-online",
-  "version": "0.0.4",
+  "version": "1.0.0",
   "description": "Node redis user online/offline tracker",
   "main": "index.js",
   "scripts": {
