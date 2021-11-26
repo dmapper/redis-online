@@ -1,6 +1,6 @@
 
 var extend = require('extend');
-var redis = require('redis-url');
+var redis = require('redis');
 var async = require('async');
 
 var defaultOptions = {
@@ -19,7 +19,7 @@ onlineTracker.prototype.init = function(options){
   this.options.redisUrl = this.options.redisUrl || process.env.REDIS_URL;
 
   if (this.options.redisUrl){
-    this.client = redis.connect(this.options.redisUrl);
+    this.client = redis.createClient({ url: this.options.redisUrl });
     this._init = true;
   }
 };
